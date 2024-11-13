@@ -19,7 +19,7 @@ sudo ./start.sh
 sudo ./stop.sh
 ```
 ## Contributing
-This project is maintained by me & @PhamDuong1311, checking out his [github](https://github.com/PhamDuong1311)
+This project is maintained by me & @ducnguynx, checking out his [github](https://github.com/ducnguynx)
 Please make sure to update tests as appropriate.
 
 ## License
