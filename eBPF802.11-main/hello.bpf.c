@@ -58,15 +58,18 @@ static int isBeacon(struct xdp_md *ctx) {
         return 0;
     }
     data = data + 26; // pass the Radiotap header (for raspberry 26 -> 18 ?)
-    struct frameControl *fcs = data;
-    if (data + sizeof(struct frameControl) > data_end) {
+    frame_control_t *fcs = (frame_control_t *)data;
+    if (data + sizeof(frame_control_t) > data_end) {
         bpf_printk("ERR: frameControl has a problem");
         return 0;
     };
+    
+    __u16 *frame_control = (__u16 *)data;
+    bpf_printk("Frame Control (raw): 0x%04x", *frame_control);
+    
     /*Debug purpose*/
-    if (fcs->fcs[0] == 0x80 & fcs->fcs[1] == 0x00) {
+    if (fcs->type == 0x00 & fcs->subtype == 0x08) {
         bpf_printk("Found beacon frame");
-        bpf_printk("Frame Control:[0]%02x [1]%02x",fcs->fcs[0],fcs->fcs[1]);
         return 1;
     }
     return 0;
@@ -124,82 +127,136 @@ static int updateAddress(struct xdp_md *ctx) {
 
     /*MAJOR PROBLEM*/
     data = data + 26; 
-    wifi_header_t *header = (wifi_header_t *)data;
-    if (data + sizeof(wifi_header_t) > data_end) {
-        bpf_printk("ERR: checkpoint header\n");
-        return 0;
-    }
+    frame_control_t *fcs = (frame_control_t *)data;
+	if (classify_frame(fcs->type, fcs->subtype) == 16) {
+	    rts_poll_header_t *header = (rts_poll_header_t *)data;
+	    if (data + sizeof(rts_poll_header_t) > data_end) {
+		bpf_printk("ERR: checkpoint header\n");
+		return 0;
+	    }
+	    struct key key;
+	    struct value *values;
+
+		/*Second Address*/ /*Source MAC*/
+	    key.address[0] = header->addr2[0];
+	    key.address[1] = header->addr2[1];
+	    key.address[2] = header->addr2[2];
+	    key.address[3] = header->addr2[3];
+	    key.address[4] = header->addr2[4];
+	    key.address[5] = header->addr2[5];
+	    values = bpf_map_lookup_elem(&xdp_map_count1, &key);
+	    if (values) {
+		count_frame(header->frame_control.type, header->frame_control.subtype, (struct val *)values);
+		bpf_map_update_elem(&xdp_map_count1, &key, values, BPF_ANY);
+	    } else {
+		// not capture the first frame
+		struct value newval = {}; 
+		bpf_map_update_elem(&xdp_map_count1, &key, &newval, BPF_NOEXIST);
+	    }
+	    return XDP_PASS;
+	} else if (classify_frame(fcs->type, fcs->subtype) == 10) {
+	    cts_ack_header_t *header = (cts_ack_header_t *)data;
+	    if (data + sizeof(cts_ack_header_t) > data_end) {
+		bpf_printk("ERR: checkpoint header\n");
+		return 0;
+	    }
+	    struct key key;
+	    struct value *values;
+
+		/*Second Address*/ /*Source MAC*/
+	    key.address[0] = header->addr1[0];
+	    key.address[1] = header->addr1[1];
+	    key.address[2] = header->addr1[2];
+	    key.address[3] = header->addr1[3];
+	    key.address[4] = header->addr1[4];
+	    key.address[5] = header->addr1[5];
+	    values = bpf_map_lookup_elem(&xdp_map_count1, &key);
+	    if (values) {
+		count_frame(header->frame_control.type, header->frame_control.subtype, (struct val *)values);
+		bpf_map_update_elem(&xdp_map_count1, &key, values, BPF_ANY);
+	    } else {
+		// not capture the first frame
+		struct value newval = {}; 
+		bpf_map_update_elem(&xdp_map_count1, &key, &newval, BPF_NOEXIST);
+	    }
+	    return XDP_PASS;
+	} else {
+	    mana_header_t *header = (mana_header_t *)data;
+	    if (data + sizeof(mana_header_t) > data_end) {
+		bpf_printk("ERR: checkpoint header\n");
+		return 0;
+	    }
 
 
-    struct key key;
-    struct value *values;
+	    struct key key;
+	    struct value *values;
 
-/*Second Address*/ /*Source MAC*/
-    key.address[0] = header->addr2[0];
-    key.address[1] = header->addr2[1];
-    key.address[2] = header->addr2[2];
-    key.address[3] = header->addr2[3];
-    key.address[4] = header->addr2[4];
-    key.address[5] = header->addr2[5];
-    values = bpf_map_lookup_elem(&xdp_map_count1, &key);
-    if (values) {
-        classify_subtype(header->frame_control.type, header->frame_control.subtype, values);
-        
-        if (isBeacon(ctx))
-        {
-            char SSID[33];
-            int len = 0;
-            getSSID(ctx,SSID,&len);
-            if (len<sizeof(SSID))
-            {
-            SSID[len] = '\0'; // NULL terminator
-            }
-            // fuck you LLVM
-            values->SSID[0] = SSID[0];
-            values->SSID[1] = SSID[1];
-            values->SSID[2] = SSID[2];
-            values->SSID[3] = SSID[3];
-            values->SSID[4] = SSID[4];
-            values->SSID[5] = SSID[5];
-            values->SSID[6] = SSID[6];
-            values->SSID[7] = SSID[7];
-            values->SSID[8] = SSID[8];
-            values->SSID[9] = SSID[9];
-            values->SSID[10] = SSID[10];
-            values->SSID[11] = SSID[11];
-            values->SSID[12] = SSID[12];
-            values->SSID[13] = SSID[13];
-            values->SSID[14] = SSID[14];
-            values->SSID[15] = SSID[15];
-            values->SSID[16] = SSID[16];
-            values->SSID[17] = SSID[17];
-            values->SSID[18] = SSID[18];
-            values->SSID[19] = SSID[19];
-            values->SSID[20] = SSID[20];
-            values->SSID[21] = SSID[21];
-            values->SSID[22] = SSID[22];
-            values->SSID[23] = SSID[23];
-            values->SSID[24] = SSID[24];
-            values->SSID[25] = SSID[25];
-            values->SSID[26] = SSID[26];
-            values->SSID[27] = SSID[27];
-            values->SSID[28] = SSID[28];
-            values->SSID[29] = SSID[29];
-            values->SSID[30] = SSID[30];
-            values->SSID[31] = SSID[31];
-            values->SSID[32] = '\0';
-            bpf_printk("SSID is %s",values->SSID);
-        }
-        
-        bpf_map_update_elem(&xdp_map_count1, &key, values, BPF_ANY);
-    } else {
-        // not capture the first frame
-        struct value newval = {}; 
-        bpf_map_update_elem(&xdp_map_count1, &key, &newval, BPF_NOEXIST);
-    }
-
-    
-    return XDP_PASS;
+		/*Second Address*/ /*Source MAC*/
+	    key.address[0] = header->addr2[0];
+	    key.address[1] = header->addr2[1];
+	    key.address[2] = header->addr2[2];
+	    key.address[3] = header->addr2[3];
+	    key.address[4] = header->addr2[4];
+	    key.address[5] = header->addr2[5];
+	    values = bpf_map_lookup_elem(&xdp_map_count1, &key);
+	    if (values) {
+		count_frame(header->frame_control.type, header->frame_control.subtype, (struct val *)values);
+		
+		if (isBeacon(ctx))
+		{
+		    char SSID[33];
+		    int len = 0;
+		    getSSID(ctx,SSID,&len);
+		    if (len<sizeof(SSID))
+		    {
+		    SSID[len] = '\0'; // NULL terminator
+		    }
+		    // fuck you LLVM
+		    values->SSID[0] = SSID[0];
+		    values->SSID[1] = SSID[1];
+		    values->SSID[2] = SSID[2];
+		    values->SSID[3] = SSID[3];
+		    values->SSID[4] = SSID[4];
+		    values->SSID[5] = SSID[5];
+		    values->SSID[6] = SSID[6];
+		    values->SSID[7] = SSID[7];
+		    values->SSID[8] = SSID[8];
+		    values->SSID[9] = SSID[9];
+		    values->SSID[10] = SSID[10];
+		    values->SSID[11] = SSID[11];
+		    values->SSID[12] = SSID[12];
+		    values->SSID[13] = SSID[13];
+		    values->SSID[14] = SSID[14];
+		    values->SSID[15] = SSID[15];
+		    values->SSID[16] = SSID[16];
+		    values->SSID[17] = SSID[17];
+		    values->SSID[18] = SSID[18];
+		    values->SSID[19] = SSID[19];
+		    values->SSID[20] = SSID[20];
+		    values->SSID[21] = SSID[21];
+		    values->SSID[22] = SSID[22];
+		    values->SSID[23] = SSID[23];
+		    values->SSID[24] = SSID[24];
+		    values->SSID[25] = SSID[25];
+		    values->SSID[26] = SSID[26];
+		    values->SSID[27] = SSID[27];
+		    values->SSID[28] = SSID[28];
+		    values->SSID[29] = SSID[29];
+		    values->SSID[30] = SSID[30];
+		    values->SSID[31] = SSID[31];
+		    values->SSID[32] = '\0';
+		    bpf_printk("SSID is %s",values->SSID);
+		}
+		
+		bpf_map_update_elem(&xdp_map_count1, &key, values, BPF_ANY);
+	    } else {
+		// not capture the first frame
+		struct value newval = {}; 
+		bpf_map_update_elem(&xdp_map_count1, &key, &newval, BPF_NOEXIST);
+	    }
+	    return XDP_PASS;
+	}
+	return XDP_PASS;
 }
 
 SEC("xdp")

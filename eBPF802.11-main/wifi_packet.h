@@ -30,9 +30,7 @@ typedef struct {
 } infoSSID;
 
 /*structure for FCS*/
-struct frameControl {
-    __u8 fcs[2];
-};
+
 typedef struct {
     __u16 version: 2;      
     __u16 type: 2;         
@@ -54,8 +52,20 @@ typedef struct {
 	__u8 addr2[6];
 	__u8 addr3[6];
 	__u8 sequence_control[2];
-	__u8 addr4[6];
-} wifi_header_t;
+} mana_header_t;
+
+typedef struct {
+	frame_control_t frame_control;
+	__u8 duration[2];
+	__u8 addr1[6];
+	__u8 addr2[6];
+} rts_poll_header_t;
+
+typedef struct {
+	frame_control_t frame_control;
+	__u8 duration[2];
+	__u8 addr1[6];
+} cts_ack_header_t;
 
 struct val {
     __u64 countBeacon;
@@ -77,7 +87,30 @@ struct val {
     char SSID[33];
 };
 
-void classify_subtype(__u8 type, __u16 subtype, struct val *val) {
+
+int classify_frame(__u8 type, __u16 subtype) {
+    if (type == 0x00) { // Management frame
+	return 24;
+    } else if (type == 0x01) { // Control frame
+        switch (subtype) {
+            case 0x0A: 
+		return 16;
+            case 0x0B: 
+		return 16;
+            case 0x0C: 
+		return 10;
+            case 0x0D: 
+		return 10;
+            default: 
+		return 24;
+        }
+    } else if (type == 0x02) { // Data frame
+	return 24;
+    } return 24;
+ 
+}
+
+void count_frame(__u8 type, __u16 subtype, struct val *val) {
     if (type == 0x00) { // Management frame
         switch (subtype) {
             case 0x00: 
