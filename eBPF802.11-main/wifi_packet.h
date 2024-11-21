@@ -4,25 +4,8 @@
 #include <linux/types.h>
 
 struct radiotapHeader {
-    __u8 rev;
-    __u8 pad;
-    __u8 length_1;
-    __u8 length_2;
-    __u32 presentFlags;
-    __u8 flag;
-    __u8 datarate;
-    __u16 frequency;
-    __u16 channelFlags;
-    __u8 s2complementSignal;
-    __u8 atena;
-    __u16 rxFlags;
-    __u16 rxFlags1;
+	__u8 length[26];
 };
-typedef struct {
-    __u8 timeStamp[8];
-    __u8 beaconInterval[2];
-    __u8 capabilityInfo[2];
-} firstThreeField;
 
 typedef struct {
     __u8 tagNumber;

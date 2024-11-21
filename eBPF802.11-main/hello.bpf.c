@@ -53,7 +53,7 @@ struct {
 static int isBeacon(struct xdp_md *ctx) {
     void *data = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
-    if (data + 26 > data_end) {
+    if (data + 26 + 2 > data_end) {
         bpf_printk("ERR: Radio tap has a problem");
         return 0;
     }
@@ -79,7 +79,7 @@ static int isBeacon(struct xdp_md *ctx) {
 static int getSSID(struct xdp_md *ctx, char* bufferSSID, int* len) {
     void *data = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
-    if (data + 26 > data_end) {
+    if (data + 26 + 2 > data_end) {
         bpf_printk("ERR: Radio tap has a problem");
         return 1;
     }
@@ -120,7 +120,7 @@ static int updateAddress(struct xdp_md *ctx) {
     void *data = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
 
-    if (data + sizeof(struct radiotapHeader) > data_end) {
+    if (data + 26 + 2 > data_end) {
         bpf_printk("ERR: checkpoint radio\n");
         return 0;
     }
@@ -204,7 +204,7 @@ static int updateAddress(struct xdp_md *ctx) {
 		
 		if (isBeacon(ctx))
 		{
-		    char SSID[33];
+		    char SSID[33] = "asvabsews";
 		    int len = 0;
 		    getSSID(ctx,SSID,&len);
 		    if (len<sizeof(SSID))

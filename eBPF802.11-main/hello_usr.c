@@ -51,20 +51,20 @@ int main() {
                     printf("Address %02x:%02x:%02x:%02x:%02x:%02x\n",
                            next_key.address[0], next_key.address[1], next_key.address[2],
                            next_key.address[3], next_key.address[4], next_key.address[5]);
-                    printf("Count Beacon: %llu\n", val.countBeacon);
-                    printf("Count Probe Response: %llu\n", val.countProbeRes);
-                    printf("Count Probe Request: %llu\n", val.countProbeReq);
-                    printf("Count Association Response: %llu\n", val.countAssocRes);
-                    printf("Count Association Request: %llu\n", val.countAssocReq);
-                    printf("Count Authentication: %llu\n", val.countAuth);
+                    printf("Count Beacon transmit: %llu\n", val.countBeacon);
+                    printf("Count Probe Response transmit: %llu\n", val.countProbeRes);
+                    printf("Count Probe Request transmit: %llu\n", val.countProbeReq);
+                    printf("Count Association Response transmit: %llu\n", val.countAssocRes);
+                    printf("Count Association Request transmit: %llu\n", val.countAssocReq);
+                    printf("Count Authentication transmit: %llu\n", val.countAuth);
                     
-                    printf("Count ACK: %llu\n", val.countAck);
-                    printf("Count RTS: %llu\n", val.countRts);
-                    printf("Count CTS: %llu\n", val.countCts);
-                    printf("Count PS Poll: %llu\n", val.countPsPoll);
+                    printf("Count ACK receive: %llu\n", val.countAck);
+                    printf("Count RTS transmit: %llu\n", val.countRts);
+                    printf("Count CTS receive: %llu\n", val.countCts);
+                    printf("Count PS Poll transmit: %llu\n", val.countPsPoll);
                     
-                    printf("Count Data: %llu\n", val.countData);
-                    printf("Count QoS Data: %llu\n", val.countQosData);
+                    printf("Count Data transmit: %llu\n", val.countData);
+                    printf("Count QoS Data transmit: %llu\n", val.countQosData);
                    
                     printf("Count Unknown: %llu\n", val.countUnknown);
                     printf("SSID is %s \n",val.SSID);
