@@ -8,15 +8,17 @@
 #include <MQTTClient.h>
 #include "wifi_packet.h"
 
-// MQTT Configuration
 #define ADDRESS          "demo.thingsboard.io"
 #define CLIENTID         "WiFi_Packet_Capture"
 #define ATTRIBUTE_TOPIC  "v1/devices/me/attributes"
 #define QOS              1
 #define TIMEOUT          10000L
-#define ACCESS_TOKEN     "W3BZaHIeGE5daOrDqH7p"
+#define ACCESS_TOKEN     "LfXxYWivG5xHyMWgxFYp"
 
-// Structs for map data
+// Define maximum buffer size
+#define MAX_PAYLOAD_SIZE 4096
+#define MAX_ENTRY_SIZE   512
+
 struct key {
     __u8 address[6];
 };
@@ -71,41 +73,8 @@ void send_data(const char *payload) {
     MQTTClient_destroy(&client);
 }
 
-// Function to send attributes
-void send_attributes(struct key *cur_key, struct value *val) {
-    char attributePayload[512];
-    snprintf(attributePayload, sizeof(attributePayload),
-             "{"
-             "\"address\": \"%02x:%02x:%02x:%02x:%02x:%02x\", "
-             "\"countBeacon\": %llu, "
-             "\"countProbeReq\": %llu, "
-             "\"countProbeRes\": %llu, "
-             "\"countAssocReq\": %llu, "
-             "\"countAssocRes\": %llu, "
-             "\"countAuth\": %llu, "
-             "\"countAck\": %llu, "
-             "\"countRts\": %llu, "
-             "\"countCts\": %llu, "
-             "\"countPsPoll\": %llu, "
-             "\"countData\": %llu, "
-             "\"countQosData\": %llu, "
-             "\"countOthers\": %llu, "
-             "\"SSID\": \"%s\""
-             "}",
-             cur_key->address[0], cur_key->address[1], cur_key->address[2],
-             cur_key->address[3], cur_key->address[4], cur_key->address[5],
-             val->countBeacon, val->countProbeReq, val->countProbeRes,
-             val->countAssocReq, val->countAssocRes, val->countAuth,
-             val->countAck, val->countRts, val->countCts,
-             val->countPsPoll, val->countData, val->countQosData,
-             val->countUnknown, val->SSID);
-
-    send_data(attributePayload);
-}
-
 // Main function
 int main() {
-    // Open BPF map
     int map_fd = bpf_obj_get("/sys/fs/bpf/xdp_map_count1");
     if (map_fd < 0) {
         perror("bpf_obj_get");
@@ -115,25 +84,71 @@ int main() {
     struct key cur_key = {};
     struct key next_key;
     struct value val;
-    struct value last_val = {0};  // To store the last sent value
 
     while (1) {
+        char attributePayload[MAX_PAYLOAD_SIZE];
+        char keyData[MAX_PAYLOAD_SIZE];
+        int total_len = 0;
+
+        strcpy(keyData, "[");
+        total_len += 1; // Account for opening bracket
+
         memset(&cur_key, 0, sizeof(cur_key));
         if (bpf_map_get_next_key(map_fd, NULL, &next_key) == 0) {
             do {
                 if (bpf_map_lookup_elem(map_fd, &next_key, &val) == 0) {
-                    // Send attributes only when data changes
-                    if (memcmp(&val, &last_val, sizeof(struct value)) != 0) {
-                        send_attributes(&next_key, &val);
+                    char entry[MAX_ENTRY_SIZE];
+                    snprintf(entry, sizeof(entry),
+                             "{"
+                             "\"mac\": \"%02x:%02x:%02x:%02x:%02x:%02x\", "
+                             "\"beacon\": %llu, "
+                             "\"probeReq\": %llu, "
+                             "\"probeRes\": %llu, "
+                             "\"assocReq\": %llu, "
+                             "\"assocRes\": %llu, "
+                             "\"auth\": %llu, "
+                             "\"ack\": %llu, "
+                             "\"rts\": %llu, "
+                             "\"psPoll\": %llu, "
+                             "\"cts\": %llu, "
+                             "\"data\": %llu, "
+                             "\"qosData\": %llu, "
+                             "\"others\": %llu, "
+                             "\"ssid\": \"%s\""
+                             "}",
+                             next_key.address[0], next_key.address[1], next_key.address[2],
+                             next_key.address[3], next_key.address[4], next_key.address[5],
+                             val.countBeacon, val.countProbeReq, val.countProbeRes,
+                             val.countAssocReq, val.countAssocRes, val.countAuth,
+                             val.countAck, val.countRts, val.countPsPoll,
+                             val.countCts, val.countData, val.countQosData,
+                             val.countUnknown, val.SSID);
 
-                        // Update last_val with the current value
-                        memcpy(&last_val, &val, sizeof(struct value));
+                    int entry_len = strlen(entry);
+                    if (total_len + entry_len + 2 >= MAX_PAYLOAD_SIZE) { // +2 for ',' and closing bracket
+                        fprintf(stderr, "Payload too large, entry skipped\n");
+                        continue;
                     }
+
+                    if (total_len > 1) { // Add a comma if not the first entry
+                        strcat(keyData, ",");
+                        total_len += 1;
+                    }
+
+                    strcat(keyData, entry);
+                    total_len += entry_len;
                 }
             } while (bpf_map_get_next_key(map_fd, &next_key, &next_key) == 0);
         }
+
+        strcat(keyData, "]");
+        snprintf(attributePayload, sizeof(attributePayload),
+                 "{ \"key\": { \"key\": %s } }", keyData);
+
+        send_data(attributePayload);
+
         printf("\n==========================\n");
-        sleep(5); // Sleep to avoid flooding the terminal
+        sleep(5); // Avoid flooding
     }
 
     close(map_fd);
