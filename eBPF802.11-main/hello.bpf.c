@@ -180,6 +180,58 @@ static int updateAddress(struct xdp_md *ctx) {
 		bpf_map_update_elem(&xdp_map_count1, &key, &newval, BPF_NOEXIST);
 	    }
 	    return XDP_PASS;
+	} else if (classify_frame(fcs->type, fcs->subtype) == 34) {
+	    data_header_t *header = (data_header_t *)data;
+	    if (data + sizeof(data_header_t) > data_end) {
+		bpf_printk("ERR: checkpoint header\n");
+		return 0;
+	    }
+	    struct key key;
+	    struct value *values;
+
+		/*Second Address*/ /*Source MAC*/
+	    key.address[0] = header->addr2[0];
+	    key.address[1] = header->addr2[1];
+	    key.address[2] = header->addr2[2];
+	    key.address[3] = header->addr2[3];
+	    key.address[4] = header->addr2[4];
+	    key.address[5] = header->addr2[5];
+	    values = bpf_map_lookup_elem(&xdp_map_count1, &key);
+	    if (values) {
+		count_frame(header->frame_control.type, header->frame_control.subtype, (struct val *)values);
+		bpf_map_update_elem(&xdp_map_count1, &key, values, BPF_ANY);
+	    } else {
+		// not capture the first frame
+		struct value newval = {}; 
+		bpf_map_update_elem(&xdp_map_count1, &key, &newval, BPF_NOEXIST);
+	    }
+	    return XDP_PASS;
+	} else if (classify_frame(fcs->type, fcs->subtype) == 36) {
+	    qos_data_header_t *header = (qos_data_header_t *)data;
+	    if (data + sizeof(qos_data_header_t) > data_end) {
+		bpf_printk("ERR: checkpoint header\n");
+		return 0;
+	    }
+	    struct key key;
+	    struct value *values;
+
+		/*Second Address*/ /*Source MAC*/
+	    key.address[0] = header->addr2[0];
+	    key.address[1] = header->addr2[1];
+	    key.address[2] = header->addr2[2];
+	    key.address[3] = header->addr2[3];
+	    key.address[4] = header->addr2[4];
+	    key.address[5] = header->addr2[5];
+	    values = bpf_map_lookup_elem(&xdp_map_count1, &key);
+	    if (values) {
+		count_frame(header->frame_control.type, header->frame_control.subtype, (struct val *)values);
+		bpf_map_update_elem(&xdp_map_count1, &key, values, BPF_ANY);
+	    } else {
+		// not capture the first frame
+		struct value newval = {}; 
+		bpf_map_update_elem(&xdp_map_count1, &key, &newval, BPF_NOEXIST);
+	    }
+	    return XDP_PASS;
 	} else {
 	    mana_header_t *header = (mana_header_t *)data;
 	    if (data + sizeof(mana_header_t) > data_end) {

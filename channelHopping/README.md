@@ -12,5 +12,5 @@ After "RECALIBRATION_INTERVAL" the system will re-calibate itself by counting th
 ## Compile & Run
 + This program uses libpcap-dev package, so in order to build & run. Run `sudo apt install libpcap-dev` in your terminal
 + `make all` to build
-+ `sudo ./adaptive_channel_hopping <interface>` to run
++ `sudo ./adaptive_channel_hopping wlx347de4440488` to run
 Tested on Ubuntu 22.04 LTS w/ kernel version 6.x :shipit:

@@ -18,7 +18,7 @@ $(BPF_OBJ): %.o: %.c
             -Wall \
             -O2 -o $@ -c $<
 hello_usr: hello_usr.c
-	gcc -Wall -O2 -g $^ -o $@ -lbpf
+	gcc -Wall -O2 -g $^ -o $@ -lbpf -lpaho-mqtt3c
 clean:
 	- rm -f /sys/fs/bpf/$(TARGET)
 	- rm $(BPF_OBJ)

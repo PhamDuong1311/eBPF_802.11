@@ -50,6 +50,30 @@ typedef struct {
 	__u8 addr1[6];
 } cts_ack_header_t;
 
+typedef struct {
+	frame_control_t frame_control;
+	__u8 duration[2];
+	__u8 addr1[6];
+	__u8 addr2[6];
+	__u8 addr3[6];
+	__u8 sequence_control[2];
+	__u8 addr4[6];
+	__u8 qos[2];
+	__u8 ht_control[4];
+
+} qos_data_header_t;
+
+typedef struct {
+	frame_control_t frame_control;
+	__u8 duration[2];
+	__u8 addr1[6];
+	__u8 addr2[6];
+	__u8 addr3[6];
+	__u8 sequence_control[2];
+	__u8 addr4[6];
+	__u8 ht_control[4];
+} data_header_t;
+
 struct val {
     __u64 countBeacon;
     __u64 countProbeReq;
@@ -88,7 +112,14 @@ int classify_frame(__u8 type, __u16 subtype) {
 		return 24;
         }
     } else if (type == 0x02) { // Data frame
-	return 24;
+	switch (subtype) {
+	    case 0x00:
+	    	return 34;
+	    case 0x08:
+	    	return 36;
+	    default:
+	    	return 24;
+	}
     } return 24;
  
 }
