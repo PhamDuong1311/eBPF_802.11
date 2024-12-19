@@ -8,13 +8,15 @@
 #include <MQTTClient.h>
 #include "wifi_packet.h"
 
-#define ADDRESS     "demo.thingsboard.io"  
-#define CLIENTID    "WiFi_Packet_Capture"
-#define TOPIC       "v1/devices/me/telemetry"
-#define QOS         1
-#define TIMEOUT     10000L
-#define ACCESS_TOKEN "W3BZaHIeGE5daOrDqH7p" 
+// MQTT Configuration
+#define ADDRESS          "demo.thingsboard.io"
+#define CLIENTID         "WiFi_Packet_Capture"
+#define ATTRIBUTE_TOPIC  "v1/devices/me/attributes"
+#define QOS              1
+#define TIMEOUT          10000L
+#define ACCESS_TOKEN     "W3BZaHIeGE5daOrDqH7p"
 
+// Structs for map data
 struct key {
     __u8 address[6];
 };
@@ -39,6 +41,7 @@ struct value {
     char SSID[33];
 };
 
+// Function to send MQTT data
 void send_data(const char *payload) {
     MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
@@ -59,16 +62,50 @@ void send_data(const char *payload) {
     pubmsg.retained = 0;
 
     MQTTClient_deliveryToken token;
-    MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token);
+    MQTTClient_publishMessage(client, ATTRIBUTE_TOPIC, &pubmsg, &token);
     MQTTClient_waitForCompletion(client, token, TIMEOUT);
 
-    printf("Data sent: %s\n", payload);
+    printf("Attributes sent: %s\n", payload);
 
     MQTTClient_disconnect(client, TIMEOUT);
     MQTTClient_destroy(&client);
 }
 
+// Function to send attributes
+void send_attributes(struct key *cur_key, struct value *val) {
+    char attributePayload[512];
+    snprintf(attributePayload, sizeof(attributePayload),
+             "{"
+             "\"address\": \"%02x:%02x:%02x:%02x:%02x:%02x\", "
+             "\"countBeacon\": %llu, "
+             "\"countProbeReq\": %llu, "
+             "\"countProbeRes\": %llu, "
+             "\"countAssocReq\": %llu, "
+             "\"countAssocRes\": %llu, "
+             "\"countAuth\": %llu, "
+             "\"countAck\": %llu, "
+             "\"countRts\": %llu, "
+             "\"countCts\": %llu, "
+             "\"countPsPoll\": %llu, "
+             "\"countData\": %llu, "
+             "\"countQosData\": %llu, "
+             "\"countOthers\": %llu, "
+             "\"SSID\": \"%s\""
+             "}",
+             cur_key->address[0], cur_key->address[1], cur_key->address[2],
+             cur_key->address[3], cur_key->address[4], cur_key->address[5],
+             val->countBeacon, val->countProbeReq, val->countProbeRes,
+             val->countAssocReq, val->countAssocRes, val->countAuth,
+             val->countAck, val->countRts, val->countCts,
+             val->countPsPoll, val->countData, val->countQosData,
+             val->countUnknown, val->SSID);
+
+    send_data(attributePayload);
+}
+
+// Main function
 int main() {
+    // Open BPF map
     int map_fd = bpf_obj_get("/sys/fs/bpf/xdp_map_count1");
     if (map_fd < 0) {
         perror("bpf_obj_get");
@@ -85,43 +122,14 @@ int main() {
         if (bpf_map_get_next_key(map_fd, NULL, &next_key) == 0) {
             do {
                 if (bpf_map_lookup_elem(map_fd, &next_key, &val) == 0) {
-                    // Only send data if it has changed since the last time
+                    // Send attributes only when data changes
                     if (memcmp(&val, &last_val, sizeof(struct value)) != 0) {
-                        char jsonPayload[512];
-                        snprintf(jsonPayload, sizeof(jsonPayload),
-                                 "{"
-                                 "\"address\": \"%02x:%02x:%02x:%02x:%02x:%02x\", "
-                                 "\"countBeacon\": %llu, "
-                                 "\"countProbeReq\": %llu, "
-                                 "\"countProbeRes\": %llu, "
-                                 "\"countAssocReq\": %llu, "
-                                 "\"countAssocRes\": %llu, "
-                                 "\"countAuth\": %llu, "
-                                 "\"countAck\": %llu, "
-                                 "\"countRts\": %llu, "
-                                 "\"countCts\": %llu, "
-                                 "\"countPsPoll\": %llu, "
-                                 "\"countData\": %llu, "
-                                 "\"countQosData\": %llu, "
-                                 "\"countOthers\": %llu, "
-                                 "\"SSID\": \"%s\""
-                                 "}",
-                                 next_key.address[0], next_key.address[1], next_key.address[2],
-                                 next_key.address[3], next_key.address[4], next_key.address[5],
-                                 val.countBeacon, val.countProbeReq, val.countProbeRes,
-                                 val.countAssocReq, val.countAssocRes, val.countAuth,
-                                 val.countAck, val.countRts, val.countCts,
-                                 val.countPsPoll, val.countData, val.countQosData,
-                                 val.countUnknown, val.SSID);
-
-                        // Publish telemetry to ThingBoard
-                        send_data(jsonPayload);
+                        send_attributes(&next_key, &val);
 
                         // Update last_val with the current value
                         memcpy(&last_val, &val, sizeof(struct value));
                     }
                 }
-
             } while (bpf_map_get_next_key(map_fd, &next_key, &next_key) == 0);
         }
         printf("\n==========================\n");
